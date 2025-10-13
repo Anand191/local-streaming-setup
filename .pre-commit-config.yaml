@@ -1,0 +1,57 @@
+fail_fast: false # set to true to have pre-commit stop running hooks after first failure.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md,markdown,mdx
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: detect-private-key
+      - id: check-symlinks
+      - id: end-of-file-fixer
+      - id: forbid-submodules
+      - id: mixed-line-ending
+      - id: name-tests-test
+        args:
+          - --pytest-test-first
+      # - id: no-commit-to-branch
+
+  - repo: local
+    # to be able to use local hooks, you need to install pre-commit and these hooks
+    # in your environment using poetry install --with dev
+    hooks:
+      - id: ruff
+        name: ruff
+        description: "Run 'ruff' for extrememly fast Python linting"
+        entry: ruff check --force-exclude --fix --no-cache
+        language: python
+        types_or: [python, pyi]
+        require_serial: true
+        additional_dependencies: []
+        minimum_pre_commit_version: "2.9.2"
+      - id: ruff-format
+        name: ruff-format
+        description: "Run 'ruff' to format Python code"
+        entry: ruff format --force-exclude --no-cache
+        language: python
+        types_or: [python, pyi]
+        require_serial: true
+        additional_dependencies: []
+        minimum_pre_commit_version: "2.9.2"
+      - id: bandit
+        name: bandit
+        description: "Run 'bandit' for security analysis"
+        entry: bandit
+        language: python
+        files: ^backend
+        additional_dependencies: ["bandit[toml]"]

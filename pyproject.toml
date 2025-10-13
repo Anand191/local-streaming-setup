@@ -1,0 +1,154 @@
+[project]
+name = "local-streaming-setup"
+version = "0.1.0"
+authors = [
+    {name = "Anand", email = "anand1911991@outlook.com"}
+]
+description = "Repo for running a local streaming setup with Kafka, FastAPI, and Nginx"
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "kafka-python",
+    "aiokafka",
+    "loguru",
+]
+
+[project.urls]
+Repository = "https://github.com/Anand191/local-streaming-setup.git"
+
+[tool.poetry]
+packages = [
+    {include = "src"}
+]
+exclude = ["tests*"]
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+pytest-cov = "^7.0.0"
+pytest-xdist = "^3.8.0"
+pytest-mock = "^3.15.1"
+pytest-asyncio = "^1.0.0"
+ruff = "^0.14.0"
+isort = "^7.0.0"
+flake8 = "^7.3.0"
+deptry = "^0.23.1"
+pre-commit = "^4.3.0"
+bandit = "1.8.6"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+env = ["EXTERNAL_LOGGING_HANDLER=True"]
+asyncio_default_fixture_loop_scope = "function"
+minversion = "6.0"
+addopts = "-ra -q --strict-markers -m 'not integration and not redis'"
+markers = [
+    "integration: mark test as integration test" ,
+    "redis: mark test as redis based"
+]
+pythonpath = "src"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if TYPE_CHECKING:",
+]
+
+[tool.deptry]
+ignore = ["DEP004"]
+ignore_notebooks = true
+extend_exclude = ["src"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["openpyxl"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv"]
+skips = ["B101"] # B101 is for usage of assert, which is common in tests
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+src = ["src"]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "models",
+    "data",
+    "notebooks",
+    "logs",
+    "assets",
+]
+line-length = 88
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100",  # Missing docstring in public module
+    "D104",  # Missing docstring in public package
+    "D107",  # Missing docstring in __init__
+    "D401",  # First line should be in imperative mood; try rephrasing
+    "D400",  # First line should end with a period
+    "D415",  # First line should end with a period, question mark, or exclamation point
+    "S101",  # Use of assert detected. The enclosed code will be removed when compiling to optimised bytecode.
+    "D203",  # 1 blank line required before class docstring (found 0)
+    "D213",  # Multi-line docstring summary should start at the second line
+    "COM812",  # Missing trailing comma in function call
+    "ISC001",  # conflict with ruff format
+    "D417",  # Missing argument descriptions in the docstring
+    "FIX002",  # Found commented out code
+    "PLR2004",  # allow numerical magic values; helps with asserting response codes
+    "G004",  # logging uses f-strings
+    "E731", # do not enforce lambda assignment to variable
+]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+pydocstyle = {convention = "google"}
+mccabe = {max-complexity = 10}
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["INP001"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
