@@ -102,6 +102,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: python stream_processor.py
+    healthcheck:
+      disable: true
     depends_on:
       kafka1:
         condition: service_healthy
