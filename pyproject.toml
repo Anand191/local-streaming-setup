@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn[standard]",
     "kafka-python",
     "aiokafka",
+    "aiohttp",
     "loguru",
 ]
 
@@ -39,6 +40,7 @@ flake8 = "^7.3.0"
 deptry = "^0.23.1"
 pre-commit = "^4.3.0"
 bandit = "1.8.6"
+nest-asyncio = "^1.6.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

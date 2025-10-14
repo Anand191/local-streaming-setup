@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 import uuid
 
@@ -8,27 +10,60 @@ from core.logging import logger
 
 
 class KafkaClient:
-    """A simple Kafka client to produce and consume messages asynchronously."""
+    """A Kafka client that uses a background task for consuming responses."""
 
     def __init__(self) -> None:
         self.producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+        # Each API instance needs a unique group_id to get all responses
         self.consumer = AIOKafkaConsumer(
             RESPONSE_TOPIC,
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            group_id="fastapi_consumer_group",
+            group_id=f"fastapi_consumer_group_{uuid.uuid4()}",
             auto_offset_reset="earliest",
         )
+        self.responses: dict[str, dict] = {}
+        self.response_events: dict[str, asyncio.Event] = {}
+        self._consumer_task: asyncio.Task | None = None
         self.is_running = False
 
+    async def _response_consumer_task(self) -> None:
+        """A background task that consumes messages from the response topic."""
+        try:
+            async for msg in self.consumer:
+                try:
+                    response_data = json.loads(msg.value.decode("utf-8"))
+                    request_id = response_data.get("request_id")
+                    if request_id:
+                        self.responses[request_id] = response_data
+                        if request_id in self.response_events:
+                            self.response_events[request_id].set()
+                        logger.info(
+                            f"Consumed and stored response for request_id: {request_id}"
+                        )
+                except json.JSONDecodeError:
+                    logger.error(f"Could not decode message: {msg.value}")
+        except asyncio.CancelledError:
+            logger.info("Response consumer task was cancelled.")
+        except TimeoutError as e:
+            logger.error(f"Response consumer task failed: {e}", exc_info=True)
+
     async def start(self) -> None:
-        """Starts the Kafka producer and consumer."""
+        """Starts the Kafka producer, consumer, and the background consumer task."""
         await self.producer.start()
         await self.consumer.start()
+        self._consumer_task = asyncio.create_task(self._response_consumer_task())
         self.is_running = True
         logger.info("Kafka client started.")
 
     async def stop(self) -> None:
-        """Stops the Kafka producer and consumer."""
+        """Stops the Kafka producer, consumer, and the background consumer task."""
+        if self._consumer_task:
+            self._consumer_task.cancel()
+            # Task is already cancelled or timed out, which is expected
+            # Suppress the exceptions to avoid noisy logs
+            with contextlib.suppress(asyncio.CancelledError, asyncio.TimeoutError):
+                await asyncio.wait_for(self._consumer_task, timeout=5)
+
         await self.producer.stop()
         await self.consumer.stop()
         self.is_running = False
@@ -48,38 +83,27 @@ class KafkaClient:
         return request_id
 
     async def get_response(self, request_id: str, timeout: int = 30) -> dict | None:  # noqa: ASYNC109
-        """Waits for a specific response from the response topic.
+        """Waits for a specific response using an event-based mechanism."""
+        # Check if the response is already available from a message that arrived
+        # before the client started waiting.
+        if request_id in self.responses:
+            logger.info(f"Response for {request_id} was already available.")
+            return self.responses.pop(request_id)
 
-        This method demonstrates a long-polling pattern. The consumer waits for a
-        message with a matching request_id. While this specific request is 'blocking'
-        and waiting for the message, the asyncio event loop is not blocked.
-        The FastAPI server can still handle other incoming requests concurrently.
-
-        This highlights how an async framework can manage long-running waits without
-        tying up worker threads, unlike a traditional synchronous server where a
-        long wait would render a worker unavailable for other tasks.
-        """
+        event = asyncio.Event()
+        self.response_events[request_id] = event
         logger.info(f"Waiting for response with request_id: {request_id}")
+
         try:
-            async for msg in self.consumer:
-                try:
-                    response_data = json.loads(msg.value.decode("utf-8"))
-                    if response_data.get("request_id") == request_id:
-                        logger.info(f"Received response for request_id: {request_id}")
-                        return response_data
-                except json.JSONDecodeError:
-                    logger.error(f"Could not decode message: {msg.value}")
-                # This is a simplified timeout mechanism.
-                # In a production scenario, you might use asyncio.wait_for.
-                timeout -= 1
-                if timeout <= 0:
-                    logger.warning(
-                        f"Timeout waiting for response for request_id: {request_id}"
-                    )
-                    return None
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error while consuming: {e}")
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+            logger.info(f"Received event for request_id: {request_id}")
+            return self.responses.pop(request_id, None)
+        except TimeoutError:
+            logger.warning(f"Timeout waiting for response for request_id: {request_id}")
             return None
+        finally:
+            # Clean up the event to prevent memory leaks
+            self.response_events.pop(request_id, None)
 
 
 kafka_client = KafkaClient()
