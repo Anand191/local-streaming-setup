@@ -1,4 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    WebSocketException,
+)
 
 from api.schemas import ProcessRequest, ProcessResponse
 from services import rest_service
@@ -62,3 +68,49 @@ async def consume_message(request_id: str) -> ProcessResponse:
     raise HTTPException(
         status_code=404, detail="Result not found or request timed out."
     )
+
+
+@router.websocket("/ws/results/{request_id}")
+async def websocket_results(websocket: WebSocket, request_id: str) -> None:
+    """This endpoint establishes a WebSocket connection to stream results.
+
+    It waits for a specific result from Kafka and pushes it to the client
+    as soon as it's available, avoiding the need for client-side polling.
+    """
+    await websocket.accept()
+    if not kafka_client.is_running:
+        await websocket.close(code=1011, reason="Kafka client is not running.")
+        return
+
+    try:
+        response = await kafka_client.get_response(request_id)
+        if response:
+            await websocket.send_json(
+                {
+                    "request_id": response.get("request_id"),
+                    "status": "completed",
+                    "result": response.get("result"),
+                }
+            )
+        else:
+            await websocket.send_json(
+                {
+                    "request_id": request_id,
+                    "status": "error",
+                    "detail": "Result not found or request timed out.",
+                }
+            )
+        await websocket.close()
+    except WebSocketDisconnect:
+        # Client disconnected, no action needed
+        pass
+    except WebSocketException as e:
+        # Handle other potential errors
+        await websocket.send_json(
+            {
+                "request_id": request_id,
+                "status": "error",
+                "detail": str(e),
+            }
+        )
+        await websocket.close()
