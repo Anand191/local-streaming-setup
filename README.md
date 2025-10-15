@@ -66,7 +66,7 @@ Imagine you submit a 1-minute video to be processed into 10-second clips.
     4.  As each subsequent clip is finished, the server pushes it to the client.
     5.  The user sees results as they are generated, leading to a much better user experience.
 
-### Tabular Comparison
+### Summary
 
 | Feature | Async REST (Polling) | Streaming (e.g., WebSockets, SSE) |
 | :--- | :--- | :--- |
@@ -80,6 +80,35 @@ Imagine you submit a 1-minute video to be processed into 10-second clips.
 | **Use Cases** | Background jobs, non-urgent tasks, status updates. | Live dashboards, real-time analytics, chat, notifications. |
 
 ---
+
+## Async REST with WebSockets vs Streaming with Kafka
+
+Both Async REST with WebSockets and Streaming with Kafka enable real-time, push-based communication between server and client, but they address different architectural needs and are often complementary in modern distributed systems.
+
+### Async REST with WebSockets
+
+In this approach, a client establishes a persistent WebSocket connection to the server (such as a FastAPI application). The server processes requests—either synchronously or using background tasks—and pushes results to the client as soon as they are available. This model is ideal for real-time updates, chat applications, notifications, and other interactive use cases. The server is responsible for managing all state, processing, and delivery of results to the client.
+
+### Streaming with Kafka
+
+In a Kafka-based streaming architecture, the client still connects to the server (using REST, WebSocket, or Server-Sent Events). However, the server acts as a gateway: it publishes tasks to Kafka, and a separate processor service consumes and processes them. The result is sent back to the server via Kafka, which then delivers it to the client—potentially over a WebSocket connection. Kafka decouples the web server from the processing logic, enabling scalability, reliability, and fault tolerance. This pattern is well-suited for distributed, scalable, and resilient systems, especially when processing is heavy or asynchronous.
+
+### Key Differences
+
+| Aspect                | Async REST + WebSocket         | Streaming with Kafka                |
+|-----------------------|-------------------------------|-------------------------------------|
+| Real-time to client   | Yes                           | Yes (if using WebSocket/SSE to client) |
+| Backend decoupling    | No (server does all work)      | Yes (Kafka decouples server & processor) |
+| Scalability           | Limited by server              | High (Kafka enables horizontal scaling) |
+| Fault tolerance       | Limited                        | High (Kafka persists messages)      |
+| Processing model      | Usually in-process or thread   | Distributed, can be multi-service   |
+| Use case              | Simple real-time apps          | Complex, scalable, async workflows  |
+
+### Summary
+
+Async REST with WebSockets is sufficient for real-time updates when processing is lightweight and tightly coupled to the web server. In contrast, Kafka-based streaming architectures are more suitable for scenarios requiring decoupling, horizontal scaling, and robust asynchronous processing. In many production systems, both patterns are combined: Kafka for backend streaming and WebSockets or Server-Sent Events for real-time client updates.
+
+For further reading, see the [Kafka documentation](https://kafka.apache.org/documentation/) and [WebSocket protocol RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455).
 
 ## Appendix: Why is Streaming More Efficient Than Polling?
 
